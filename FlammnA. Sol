@@ -1,0 +1,77 @@
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.20;
+
+import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
+import "@openzeppelin/contracts/token/ERC20/extensions/ERC20Burnable.sol";
+import "@openzeppelin/contracts/access/Ownable.sol";
+
+/**
+ * @title flammnA Token
+ * @dev A meme coin with real-world utility features including a transaction-based burn mechanism.
+ * flammnA is designed for tipping, casino integration, and everyday payments.
+ */
+contract FlammnA is ERC20, ERC20Burnable, Ownable {
+    
+    // Total supply: 1 Trillion tokens (1,000,000,000,000)
+    uint256 private constant INITIAL_SUPPLY = 1_000_000_000_000 * 10**18;
+    
+    // Burn rate: 1% of every transaction
+    uint256 public burnRate = 100; // 100 basis points = 1%
+    
+    // Mapping to exclude addresses from burn (e.g., owner, exchanges)
+    mapping(address => bool) public isExcludedFromBurn;
+
+    /**
+     * @dev Constructor that gives msg.sender all of existing tokens.
+     */
+    constructor() ERC20("flammnA", "FLAM") Ownable(msg.sender) {
+        _mint(msg.sender, INITIAL_SUPPLY);
+        
+        // Exclude owner and the contract itself from burn
+        isExcludedFromBurn[msg.sender] = true;
+        isExcludedFromBurn[address(this)] = true;
+    }
+
+    /**
+     * @dev Overrides the transfer function to implement the transaction-based burn mechanism.
+     */
+    function transfer(address to, uint256 amount) public virtual override returns (bool) {
+        address owner = _msgSender();
+        
+        if (isExcludedFromBurn[owner] || isExcludedFromBurn[to]) {
+            _transfer(owner, to, amount);
+        } else {
+            uint256 burnAmount = (amount * burnRate) / 10000;
+            uint256 transferAmount = amount - burnAmount;
+            
+            if (burnAmount > 0) {
+                _burn(owner, burnAmount);
+            }
+            _transfer(owner, to, transferAmount);
+        }
+        
+        return true;
+    }
+
+    /**
+     * @dev Overrides the transferFrom function to implement the transaction-based burn mechanism.
+     */
+    function transferFrom(address from, address to, uint256 amount) public virtual override returns (bool) {
+        address spender = _msgSender();
+        _spendAllowance(from, spender, amount);
+        
+        if (isExcludedFromBurn[from] || isExcludedFromBurn[to]) {
+            _transfer(from, to, amount);
+        } else {
+            uint256 burnAmount = (amount * burnRate) / 10000;
+            uint256 transferAmount = amount - burnAmount;
+            
+            if (burnAmount > 0) {
+                _burn(from, burnAmount);
+            }
+            _transfer(from, to, transferAmount);
+        }
+        
+        return true;
+    }
+}
